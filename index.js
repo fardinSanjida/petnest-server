@@ -1,7 +1,7 @@
 const express = require('express')
 const dotenv = require('dotenv')
 const cors = require('cors')
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ObjectId, ServerApiVersion } = require('mongodb');
 
 dotenv.config()
 
@@ -47,6 +47,31 @@ async function run() {
         res.status(500).send({ message: 'Failed to fetch pets' })
       }
     });
+
+    app.get('/pets/:_id', async (req, res) => {
+      try {
+        const { _id } = req.params
+
+        if (!ObjectId.isValid(_id)) {
+          return res.status(400).send({ message: 'Invalid pet id' })
+        }
+
+        const query = { _id: new ObjectId(_id) }
+        const result = await petsCollection.findOne(query)
+
+        if (!result) {
+          return res.status(404).send({ message: 'Pet not found' })
+        }
+
+        res.send(result)
+      } catch (error) {
+        console.error('Failed to fetch pet:', error.message)
+        res.status(500).send({ message: 'Failed to fetch pet' })
+      }
+    
+    })
+     
+
 
     await client.db("admin").command({ ping: 1 });
     console.log("Successfully connected to MongoDB!");
