@@ -131,6 +131,58 @@ async function run() {
     await client.connect();
     const db = client.db('petnest')
     const petsCollection = db.collection('pets')
+    const usersCollection = db.collection('users')
+await usersCollection.createIndex({ email: 1 }, { unique: true })
+   
+    app.post('/auth/register', async (req, res) => {
+  try {
+    const { name, email, photoURL, password } = req.body
+
+    if (!name || !email || !password) {
+      return res.status(400).send({ message: 'Name, email and password are required' })
+    }
+
+    const passwordHash = hashPassword(password)
+    const user = {
+      name,
+      email: email.toLowerCase(),
+      photoURL,
+      passwordHash,
+      createdAt: new Date(),
+    }
+
+    await usersCollection.insertOne(user)
+    res.status(201).send({ message: 'Registration successful' })
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).send({ message: 'This email is already registered' })
+    }
+
+    res.status(500).send({ message: 'Registration failed' })
+  }
+})
+
+app.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body
+  const user = await usersCollection.findOne({ email: email?.toLowerCase() })
+
+  if (!user || !checkPassword(password, user.passwordHash)) {
+    return res.status(401).send({ message: 'Invalid email or password' })
+  }
+
+  res.cookie('petnest_token', signToken({ email: user.email, name: user.name }), cookieOptions)
+  res.send({ user: cleanUser(user) })
+})
+
+app.post('/auth/logout', (req, res) => {
+  res.clearCookie('petnest_token', { ...cookieOptions, maxAge: 0 })
+  res.send({ message: 'Logged out' })
+})
+
+app.get('/auth/me', requireAuth, async (req, res) => {
+  const user = await usersCollection.findOne({ email: req.user.email })
+  res.send({ user: cleanUser(user) })
+})
 
     app.get('/pets', async (req, res) => {
       try {
