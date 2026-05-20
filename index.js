@@ -239,15 +239,44 @@ function getPetImage(pet) {
   return pet?.imageUrl || pet?.image || ''
 }
 
-    app.get('/pets', async (req, res) => {
-      try {
-        const results = await petsCollection.find().toArray()
-        res.send(results)
-      } catch (error) {
-        console.error('Failed to fetch pets:', error.message)
-        res.status(500).send({ message: 'Failed to fetch pets' })
-      }
-    });
+  app.get('/pets', async (req, res) => {
+  const { petName = '', search = '', species = '', status = '', featured = '', sort = 'newest' } = req.query
+  const conditions = []
+
+  const nameSearch = petName || search
+
+  if (nameSearch) {
+    const searchPattern = { $regex: nameSearch, $options: 'i' }
+    conditions.push({ $or: [{ petName: searchPattern }, { name: searchPattern }] })
+  }
+
+  if (species) {
+    conditions.push({ species: { $in: species.split(',').filter(Boolean) } })
+  }
+
+  if (status === 'available') {
+    conditions.push({ $or: [{ status: 'available' }, { status: { $exists: false } }] })
+  } else if (status) {
+    conditions.push({ status })
+  }
+
+  const query = conditions.length ? { $and: conditions } : {}
+
+  const sortMap = {
+    feeLow: { adoptionFee: 1 },
+    feeHigh: { adoptionFee: -1 },
+    ageLow: { age: 1 },
+    newest: { createdAt: -1 },
+  }
+
+  const cursor = petsCollection.find(query).sort(sortMap[sort] || sortMap.newest)
+
+  if (featured === 'true') {
+    cursor.limit(6)
+  }
+
+  res.send(await cursor.toArray())
+})
 
     app.get('/pets/:_id', async (req, res) => {
       try {
