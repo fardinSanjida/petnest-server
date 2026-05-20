@@ -209,6 +209,36 @@ app.get('/auth/me', requireAuth, async (req, res) => {
   res.send({ user: cleanUser(user) })
 })
 
+function normalizePet(body, ownerEmail) {
+  const petName = body.petName || body.name
+  const imageUrl = body.imageUrl || body.image
+
+  return {
+    petName,
+    name: petName,
+    species: body.species,
+    breed: body.breed,
+    age: Number(body.age) || 0,
+    gender: body.gender,
+    imageUrl,
+    image: imageUrl,
+    healthStatus: body.healthStatus,
+    vaccinationStatus: body.vaccinationStatus,
+    location: body.location,
+    adoptionFee: Number(body.adoptionFee) || 0,
+    description: body.description,
+    ownerEmail,
+  }
+}
+
+function getPetName(pet) {
+  return pet?.petName || pet?.name || 'Pet'
+}
+
+function getPetImage(pet) {
+  return pet?.imageUrl || pet?.image || ''
+}
+
     app.get('/pets', async (req, res) => {
       try {
         const results = await petsCollection.find().toArray()
