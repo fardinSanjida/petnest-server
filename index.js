@@ -272,6 +272,25 @@ app.get('/owners/pets', requireAuth, async (req, res) => {
   res.send(pets)
 })
 
+ app.delete('/pets/:id', requireAuth, async (req, res) => {
+  if (!ObjectId.isValid(req.params.id)) {
+    return res.status(400).send({ message: 'Invalid pet id' })
+  }
+
+  const petId = req.params.id
+  const result = await petsCollection.deleteOne({
+    _id: new ObjectId(petId),
+    ownerEmail: req.user.email,
+  })
+
+  if (!result.deletedCount) {
+    return res.status(403).send({ message: 'Only the owner can delete this pet' })
+  }
+
+  await requestsCollection.deleteMany({ petId })
+  res.send({ message: 'Pet deleted successfully' })
+})
+
   app.get('/pets', async (req, res) => {
   const { petName = '', search = '', species = '', status = '', featured = '', sort = 'newest' } = req.query
   const conditions = []
