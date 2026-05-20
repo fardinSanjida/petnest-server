@@ -179,6 +179,31 @@ app.post('/auth/logout', (req, res) => {
   res.send({ message: 'Logged out' })
 })
 
+app.post('/auth/google', async (req, res) => {
+  const { name, email, photoURL } = req.body
+
+  if (!email) {
+    return res.status(400).send({ message: 'Email is required' })
+  }
+
+  await usersCollection.updateOne(
+    { email: email.toLowerCase() },
+    {
+      $setOnInsert: { createdAt: new Date() },
+      $set: {
+        name,
+        email: email.toLowerCase(),
+        photoURL,
+      },
+    },
+    { upsert: true }
+  )
+
+  const user = await usersCollection.findOne({ email: email.toLowerCase() })
+  res.cookie('petnest_token', signToken({ email: user.email, name: user.name }), cookieOptions)
+  res.send({ user: cleanUser(user) })
+})
+
 app.get('/auth/me', requireAuth, async (req, res) => {
   const user = await usersCollection.findOne({ email: req.user.email })
   res.send({ user: cleanUser(user) })
