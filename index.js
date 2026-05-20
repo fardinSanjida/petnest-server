@@ -238,6 +238,39 @@ function getPetName(pet) {
 function getPetImage(pet) {
   return pet?.imageUrl || pet?.image || ''
 }
+  app.post('/pets', requireAuth, async (req, res) => {
+  const pet = {
+    ...normalizePet(req.body, req.user.email),
+    status: 'available',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  }
+
+  const result = await petsCollection.insertOne(pet)
+  res.status(201).send({ insertedId: result.insertedId, message: 'Pet added successfully' })
+})
+
+app.patch('/pets/:id', requireAuth, async (req, res) => {
+  if (!ObjectId.isValid(req.params.id)) {
+    return res.status(400).send({ message: 'Invalid pet id' })
+  }
+
+  const result = await petsCollection.updateOne(
+    { _id: new ObjectId(req.params.id), ownerEmail: req.user.email },
+    { $set: { ...normalizePet(req.body, req.user.email), updatedAt: new Date() } }
+  )
+
+  if (!result.matchedCount) {
+    return res.status(403).send({ message: 'Only the owner can update this pet' })
+  }
+
+  res.send({ message: 'Pet updated successfully' })
+})
+
+app.get('/owners/pets', requireAuth, async (req, res) => {
+  const pets = await petsCollection.find({ ownerEmail: req.user.email }).sort({ createdAt: -1 }).toArray()
+  res.send(pets)
+})
 
   app.get('/pets', async (req, res) => {
   const { petName = '', search = '', species = '', status = '', featured = '', sort = 'newest' } = req.query
