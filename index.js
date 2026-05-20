@@ -2,15 +2,24 @@ const express = require('express')
 const dotenv = require('dotenv')
 const cors = require('cors')
 const { MongoClient, ObjectId, ServerApiVersion } = require('mongodb');
+const crypto = require('crypto')
+
 
 dotenv.config()
 
 const app = express()
 const port = process.env.PORT || 8080
 const uri = process.env.MONGODB_URI
+const jwtSecret = process.env.JWT_SECRET || 'petnest-local-secret'
+const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000'
+const isProduction = process.env.NODE_ENV === 'production'
 
-app.use(cors())
+
 app.use(express.json())
+app.use(cors({
+  origin: [clientUrl, 'http://localhost:3000'],
+  credentials: true,
+}))
 
 if (!uri) {
   throw new Error('MONGODB_URI is missing from .env')
@@ -26,6 +35,59 @@ const client = new MongoClient(uri, {
   }
 });
 
+const cookieOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? 'none' : 'lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+  path: '/',
+}
+
+function base64url(input) {
+  return Buffer.from(input).toString('base64url')
+}
+
+function signToken(payload) {
+  const header = base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+  const body = base64url(JSON.stringify({ ...payload, exp: Date.now() + cookieOptions.maxAge }))
+  const signature = crypto
+    .createHmac('sha256', jwtSecret)
+    .update(`${header}.${body}`)
+    .digest('base64url')
+
+  return `${header}.${body}.${signature}`
+}
+
+function verifyJwt(token) {
+  if (!token) return null
+
+  try {
+    const [header, body, signature] = token.split('.')
+    if (!header || !body || !signature) return null
+
+    const expected = crypto.createHmac('sha256', jwtSecret).update(`${header}.${body}`).digest('base64url')
+    if (Buffer.byteLength(signature) !== Buffer.byteLength(expected)) return null
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null
+
+    const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8'))
+    if (payload.exp && payload.exp < Date.now()) return null
+
+    return payload
+  } catch {
+    return null
+  }
+}
+
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex')
+  return `${salt}:${hash}`
+}
+
+function checkPassword(password, savedHash = '') {
+  const [salt] = savedHash.split(':')
+  if (!salt) return false
+  return hashPassword(password, salt) === savedHash
+}
 
 
 app.get('/', (req, res) => {
@@ -89,3 +151,4 @@ async function run() {
 }
 
 run()
+
