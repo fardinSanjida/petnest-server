@@ -89,6 +89,38 @@ function checkPassword(password, savedHash = '') {
   return hashPassword(password, salt) === savedHash
 }
 
+function parseCookies(cookieHeader = '') {
+  return cookieHeader.split(';').reduce((cookies, item) => {
+    const [key, ...rest] = item.trim().split('=')
+    if (key) cookies[key] = decodeURIComponent(rest.join('='))
+    return cookies
+  }, {})
+}
+
+function requireAuth(req, res, next) {
+  const cookies = parseCookies(req.headers.cookie)
+  const user = verifyJwt(cookies.petnest_token)
+
+  if (!user?.email) {
+    return res.status(401).send({ message: 'Unauthorized access' })
+  }
+
+  req.user = user
+  next()
+}
+
+function cleanUser(user) {
+  if (!user) return null
+
+  return {
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    photoURL: user.photoURL || '',
+    createdAt: user.createdAt,
+  }
+}
+
 
 app.get('/', (req, res) => {
   res.send('Petnest server is running')
