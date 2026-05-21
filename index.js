@@ -11,11 +11,12 @@ const port = process.env.PORT || 8080;
 const uri = process.env.MONGODB_URI;
 const jwtSecret = process.env.JWT_SECRET || 'petnest-local-secret';
 const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+const clientUrls = (process.env.CLIENT_URLS || `${clientUrl},https://petnest-client.vercel.app`).split(",").map((url) => url.trim());
 const isProduction = process.env.NODE_ENV === 'production';
 
 app.use(
   cors({
-    origin: [clientUrl, 'http://localhost:3000'],
+    origin: clientUrls,
     credentials: true,
   })
 );
@@ -155,7 +156,7 @@ app.get('/', (req, res) => {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
     const db = client.db('petnest');
     const usersCollection = db.collection('users');
     const petsCollection = db.collection('pets');
@@ -402,7 +403,7 @@ async function run() {
       res.send({ message: 'Request cancelled' });
     });
 
-    await client.db('admin').command({ ping: 1 });
+    // await client.db('admin').command({ ping: 1 });
     console.log('Successfully connected to MongoDB!');
 
     app.listen(port, () => {
